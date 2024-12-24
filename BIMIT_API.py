@@ -1,5 +1,3 @@
-
-
 import subprocess
 import sys
 import warnings
@@ -7,11 +5,15 @@ from totalsegmentator.python_api import totalsegmentator
 import os
 import pandas as pd
 from tqdm import tqdm
+from xvfbwrapper import Xvfb
 
 def install_dependencies():
     required_packages = [
         "torch",
         "totalsegmentator",
+        "fury",
+        "xvfbwrapper",
+        "pyradiomics"
         # Add more packages as needed
     ]
 
@@ -41,29 +43,12 @@ if __name__ == "__main__":
     #Step 2: Set paths
     logic = 1
     while logic:
-        folder_path = input("Copy the path to the folder of file(s) to segment: ")
+        folder_path = input("Copy the path to the folder or file to segment: ")
         if not os.path.exists(folder_path):
             print(f"Folder does not exist: {folder_path}")
             print("Please try again")
         else:
             logic = 0
-    logic = 1
-    while logic:
-        mutliple_logic = input("Do you want to run on all the '.nii.gz' files: (Y/N) ")
-        if mutliple_logic not in ('Y', 'y', 'N', 'n'):
-             print("Invalid input. Please enter Y/y or N/n.")
-        else:
-            logic = 0
-    if mutliple_logic in ('N', 'n'):
-        logic = 1
-        while logic:
-            input_file = input("What is the name of the file? ");
-            temp = folder_path + '/' + input_file
-            if not os.path.exists(temp):
-                print(f"file does not exist: {temp}")
-                print("Please try again")
-            else:
-                logic = 0
     logic = 1
     while logic:
         output_path = input("Copy the path to the folder you want the outputs in: ")
@@ -84,23 +69,36 @@ if __name__ == "__main__":
         else:
             logic = 0
         #Step 5: MR vs CT
-        logic = 1
-        while logic:
-            image_mod= input("Is the input file MR or CT? (MR/CT) ")
-            if image_mod not in ('MR', 'CT'):
-                 print("Invalid input. Please enter 'CT'or 'MR'")
-            else:
-                logic = 0
-        if image_mod == 'MR':
-            task = "total_mr"
+    logic = 1
+    while logic:
+        image_mod= input("Is the input file MR or CT? (MR/CT) ")
+        if image_mod not in ('MR','mr','Mr','mR','ct','Ct','cT', 'CT'):
+            print("Invalid input. Please enter 'CT'or 'MR'")
         else:
-            task = "total"
-        #Step 6: Determine class
+            logic = 0
+    if image_mod in ('MR','mr','Mr','mR'):
+        task = "total_mr"
+    else:
+        task = "total"
+    #Step 6: Determine class
+    logic = 1
+    while logic:
+        special_task = input("Are you perfoming a special task? (Y/N): ")
+        if special_task not in ('Y', 'y', 'N', 'n'):
+            print("Invalid input. Please enter Y/y or N/n.")
+        else:
+            logic = 0
+    if special_task in ('Y', 'y'):
+        print("lung_vessels\nbody\ncerebral_bleed\nhip_implant\ncoronary_arteries\npleural_pericard_effusion")
+        print("head_glands_cavities\nhead_muscles\nheadneck_bones_vessels\nheadneck_muscles")
+        task = input("Enter the name speical task:")
+        roi_subset = None
+    else:
         logic = 1
         while logic:
             class_logic = input("Are you perfoming segmentation for all classes (Y/N): ")
             if class_logic not in ('Y', 'y', 'N', 'n'):
-                 print("Invalid input. Please enter Y/y or N/n.")
+                print("Invalid input. Please enter Y/y or N/n.")
             else:
                 logic = 0
         if class_logic in ('Y','y'):
@@ -127,10 +125,24 @@ if __name__ == "__main__":
                 if class_logic in ('N', 'n'):
                     logic = 0
             
-    #Step 7: Extra stuff
+    #Step 7: Advanced settings
+    
     logic = 1
     while logic:
-        quiet= input("Would you like the segmentation proccess to be quiet: (Y/N) ")
+        adv_logic = input("Would you like to add advanced settings? (Y/N): ")
+        if adv_logic not in ('Y', 'y', 'N', 'n'):
+            print("Invalid input. Please enter Y/y or N/n.")
+        else:
+            logic = 0
+    if adv_logic in ('Y', 'y'):
+        ml= 0
+        radiomics = 1
+        statistics = 1
+    
+    #Step 9: Extra stuff
+    logic = 1
+    while logic:
+        quiet= input("Would you like the segmentation proccess to be quiet? (Y/N): ")
         if quiet not in ('Y', 'y', 'N', 'n'):
              print("Invalid input. Please enter Y/y or N/n.")
         else:
@@ -141,7 +153,7 @@ if __name__ == "__main__":
         quiet = 0
     logic = 1
     while logic:
-        fast = input("Would you like the segmentation proccess to be in fast mode: (Y/N) ")
+        fast = input("Would you like the segmentation proccess to be in fast mode (Y/N): ")
         if fast not in ('Y', 'y', 'N', 'n'):
              print("Invalid input. Please enter Y/y or N/n.")
         else:
@@ -150,20 +162,21 @@ if __name__ == "__main__":
         fast = 1
     else:
         fast = 0
-    #Step 8: run the inference
+    #Step 10: run the inference
     # Get the list of valid files to process
-    valid_files = [
-        filename for filename in os.listdir(folder_path)
-        if not filename.startswith(".") and filename.endswith(".nii.gz")
-    ]
+    if folder_path.endswith(".nii.gz"):
+        valid_files= [folder_path]
+        folder_logic = 1
+    else:
+        valid_files = [
+            filename for filename in os.listdir(folder_path)
+            if not filename.startswith(".") and filename.endswith(".nii.gz")
+        ]
+        folder_logic = 0
 
-    # If processing a single file, filter the list
-    if mutliple_logic in ('N', 'n'):
-        valid_files = [filename for filename in valid_files if filename == input_file]
-
-    if not valid_files:
-        print("No valid files found to process.")
-        sys.exit(1)
+        if not valid_files:
+            print("No valid files found to process.")
+            sys.exit(1)
 
     print("--------------------------------------------------------------")
 
@@ -172,11 +185,16 @@ if __name__ == "__main__":
     with tqdm(total=len(valid_files), desc="Processing Files", unit="file", leave=True) as pbar:
         for filename in valid_files:
             # Construct the full file path
-            file_path = os.path.join(folder_path, filename)
+            if folder_logic:
+                file_path = filename
+            else:
+                file_path = os.path.join(folder_path, filename)
 
             # Check if it's a file
             if os.path.isfile(file_path):
                 input_path = str(file_path)
+                if folder_logic:
+                    filename = os.path.basename(filename)
                 output_path_batch = os.path.join(output_path, filename)
 
                 # Use tqdm.write to indicate which file is being processed
@@ -191,7 +209,11 @@ if __name__ == "__main__":
                         device=str(device),
                         roi_subset=roi_subset,
                         fast=fast,
-                        task = task
+                        task = task,
+                        ml = ml,
+                        statistics = statistics,
+                        radiomics = radiomics,
+                        preview = 0
                     )
                 except Exception as e:
                     # Log errors without interfering with the progress bar
