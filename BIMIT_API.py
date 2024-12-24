@@ -13,7 +13,8 @@ def install_dependencies():
         "totalsegmentator",
         "fury",
         "xvfbwrapper",
-        "pyradiomics"
+        "pyradiomics",
+        "dicom2nifti"
         # Add more packages as needed
     ]
 
