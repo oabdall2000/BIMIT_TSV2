@@ -139,6 +139,11 @@ if __name__ == "__main__":
         ml= 0
         radiomics = 1
         statistics = 1
+    else:
+        ml= 0
+        radiomics = 0
+        statistics = 0
+    
     
     #Step 9: Extra stuff
     logic = 1
@@ -200,7 +205,6 @@ if __name__ == "__main__":
 
                 # Use tqdm.write to indicate which file is being processed
                 tqdm.write(f"Processing file: {file_path}")
-
                 try:
                     # Call totalsegmentator
                     totalsegmentator(
@@ -211,7 +215,7 @@ if __name__ == "__main__":
                         roi_subset=roi_subset,
                         fast=fast,
                         task = task,
-                        ml = ml,
+                        ml = 0,
                         statistics = statistics,
                         radiomics = radiomics,
                         preview = 0
