@@ -1,1 +1,4 @@
 ._*
+*.pyc
+*.pyo
+__pycache__/
