@@ -90,8 +90,7 @@ if __name__ == "__main__":
         else:
             logic = 0
     if special_task in ('Y', 'y'):
-        print("lung_vessels\nbody\ncerebral_bleed\nhip_implant\ncoronary_arteries\npleural_pericard_effusion")
-        print("head_glands_cavities\nhead_muscles\nheadneck_bones_vessels\nheadneck_muscles")
+        print("Please refer to the README for the names to input")
         task = input("Enter the name speical task:")
         roi_subset = None
     else:
