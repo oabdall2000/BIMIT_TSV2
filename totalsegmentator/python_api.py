@@ -70,7 +70,8 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
                      force_split=False, output_type="nifti", quiet=False, verbose=False, test=0,
                      skip_saving=False, device="gpu", license_number=None,
                      statistics_exclude_masks_at_border=True, no_derived_masks=False,
-                     v1_order=False, fastest=False, roi_subset_robust=None, stats_aggregation="mean"):
+                     v1_order=False, fastest=False, roi_subset_robust=None, stats_aggregation="mean",
+                     remove_small_blobs=False):
     """
     Run TotalSegmentator from within python.
 
@@ -90,8 +91,18 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
 
     nora_tag = "None" if nora_tag is None else nora_tag
 
+    # Store initial torch settings
+    initial_cudnn_benchmark = torch.backends.cudnn.benchmark
+    initial_num_threads = torch.get_num_threads()
+
     validate_device_type_api(device)
     device = convert_device_to_cuda(device)
+
+    if output_type == "dicom":
+        try:
+            from rt_utils import RTStructBuilder
+        except ImportError:
+            raise ImportError("rt_utils is required for output_type='dicom'. Please install it with 'pip install rt_utils'.")
 
     # available devices: gpu | cpu | mps | gpu:1, gpu:2, etc.
     if device == "gpu": 
@@ -150,22 +161,22 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
         folds = [0]
     elif task == "total_mr":
         if fast:
-            task_id = 732
+            task_id = 852
             resample = 3.0
-            trainer = "nnUNetTrainer_DASegOrd0_NoMirroring"
+            trainer = "nnUNetTrainer_2000epochs_NoMirroring"
             # trainer = "nnUNetTrainerNoMirroring"
             crop = None
             if not quiet: print("Using 'fast' option: resampling to lower resolution (3mm)")
         elif fastest:
-            task_id = 733
+            task_id = 853
             resample = 6.0
-            trainer = "nnUNetTrainer_DASegOrd0_NoMirroring"
+            trainer = "nnUNetTrainer_2000epochs_NoMirroring"
             crop = None
             if not quiet: print("Using 'fastest' option: resampling to lower resolution (6mm)")
         else:
-            task_id = [730, 731]
+            task_id = [850, 851]
             resample = 1.5
-            trainer = "nnUNetTrainer_DASegOrd0_NoMirroring"
+            trainer = "nnUNetTrainer_2000epochs_NoMirroring"
             crop = None
         model = "3d_fullres"
         folds = [0]
@@ -205,15 +216,6 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
         model = "3d_fullres"
         folds = [0]
         if fast: raise ValueError("task hip_implant does not work with option --fast")
-    elif task == "coronary_arteries":
-        task_id = 503
-        resample = None
-        trainer = "nnUNetTrainer"
-        crop = ["heart"]
-        model = "3d_fullres"
-        folds = [0]
-        print("WARNING: The coronary artery model does not work very robustly. Use with care!")
-        if fast: raise ValueError("task coronary_arteries does not work with option --fast")
     elif task == "body":
         if fast:
             task_id = 300
@@ -230,6 +232,29 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
             crop = None
             model = "3d_fullres"
             folds = [0]
+    elif task == "body_mr":
+        if fast:
+            task_id = 598  # todo: train
+            resample = 6.0
+            trainer = "nnUNetTrainer_DASegOrd0"
+            crop = None
+            model = "3d_fullres"
+            folds = [0]
+            if not quiet: print("Using 'fast' option: resampling to lower resolution (6mm)")
+        else:
+            task_id = 597
+            resample = 1.5
+            trainer = "nnUNetTrainer_DASegOrd0"
+            crop = None
+            model = "3d_fullres"
+            folds = [0]
+    elif task == "vertebrae_mr":
+        task_id = 756
+        resample = None
+        trainer = "nnUNetTrainer_DASegOrd0_NoMirroring"
+        crop = None
+        model = "3d_fullres"
+        folds = [0]
     elif task == "pleural_pericard_effusion":
         task_id = 315
         resample = None
@@ -289,12 +314,49 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
         model = "3d_fullres_high"
         folds = [0]
         if fast: raise ValueError("task headneck_muscles does not work with option --fast")
+    elif task == "oculomotor_muscles":
+        task_id = 351
+        resample = [0.47251562774181366, 0.47251562774181366, 0.8500002026557922]
+        trainer = "nnUNetTrainer_DASegOrd0_NoMirroring"
+        crop = ["skull"]
+        crop_addon = [20, 20, 20]
+        model = "3d_fullres"
+        folds = [0]
+        if fast: raise ValueError("task oculomotor_muscles does not work with option --fast")
+    elif task == "lung_nodules":
+        task_id = 913
+        resample = [1.5, 1.5, 1.5]
+        trainer = "nnUNetTrainer_MOSAIC_1k_QuarterLR_NoMirroring"
+        crop = ["lung_upper_lobe_left", "lung_lower_lobe_left", "lung_upper_lobe_right",
+                "lung_middle_lobe_right", "lung_lower_lobe_right"]
+        crop_addon = [10, 10, 10]
+        model = "3d_fullres"
+        folds = [0]
+        if fast: raise ValueError("task lung_nodules does not work with option --fast")
+    elif task == "kidney_cysts":
+        task_id = 789
+        resample = [1.5, 1.5, 1.5]
+        trainer = "nnUNetTrainer_DASegOrd0_NoMirroring"
+        crop = ["kidney_left", "kidney_right", "liver", "spleen", "colon"]
+        crop_addon = [10, 10, 10]
+        model = "3d_fullres"
+        folds = [0]
+        if fast: raise ValueError("task kidney_cysts does not work with option --fast")
+    elif task == "breasts":
+        task_id = 527
+        resample = [1.5, 1.5, 1.5]
+        trainer = "nnUNetTrainer_DASegOrd0_NoMirroring"
+        crop = None
+        model = "3d_fullres"
+        folds = [0]
+        if fast: raise ValueError("task breasts does not work with option --fast")
 
+        
     # Commercial models
     elif task == "vertebrae_body":
-        task_id = 302
+        task_id = 305
         resample = 1.5
-        trainer = "nnUNetTrainer"
+        trainer = "nnUNetTrainer_DASegOrd0"
         crop = None
         model = "3d_fullres"
         folds = [0]
@@ -319,6 +381,15 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
         folds = [0]
         if fast: raise ValueError("task appendicular_bones does not work with option --fast")
         show_license_info()
+    elif task == "appendicular_bones_mr":
+        task_id = 855
+        resample = 1.5
+        trainer = "nnUNetTrainer_2000epochs_NoMirroring"
+        crop = None
+        model = "3d_fullres"
+        folds = [0]
+        if fast: raise ValueError("task appendicular_bones_mr does not work with option --fast")
+        show_license_info()
     elif task == "tissue_types":
         task_id = 481
         resample = 1.5
@@ -329,13 +400,22 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
         if fast: raise ValueError("task tissue_types does not work with option --fast")
         show_license_info()
     elif task == "tissue_types_mr":
-        task_id = 734
+        task_id = 854
         resample = 1.5
-        trainer = "nnUNetTrainer_DASegOrd0_NoMirroring"
+        trainer = "nnUNetTrainer_2000epochs_NoMirroring"
         crop = None
         model = "3d_fullres"
         folds = [0]
         if fast: raise ValueError("task tissue_types_mr does not work with option --fast")
+        show_license_info()
+    elif task == "tissue_4_types":
+        task_id = 485
+        resample = 1.5
+        trainer = "nnUNetTrainer"
+        crop = None
+        model = "3d_fullres"
+        folds = [0]
+        if fast: raise ValueError("task tissue_4_types does not work with option --fast")
         show_license_info()
     elif task == "face":
         task_id = 303
@@ -347,9 +427,9 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
         if fast: raise ValueError("task face does not work with option --fast")
         show_license_info()
     elif task == "face_mr":
-        task_id = 737
+        task_id = 856
         resample = 1.5
-        trainer = "nnUNetTrainer_DASegOrd0_NoMirroring"
+        trainer = "nnUNetTrainer_2000epochs_NoMirroring"
         crop = None
         model = "3d_fullres"
         folds = [0]
@@ -365,6 +445,35 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
         folds = [0]
         if fast: raise ValueError("task brain_structures does not work with option --fast")
         show_license_info()
+    elif task == "thigh_shoulder_muscles":
+        task_id = 857  # at the moment only one mixed model for CT and MR; when annotated all CT samples -> train separate CT model
+        resample = 1.5
+        trainer = "nnUNetTrainer_2000epochs_NoMirroring"
+        crop = None
+        model = "3d_fullres"
+        folds = [0]
+        if fast: raise ValueError("task thigh_shoulder_muscles does not work with option --fast")
+        show_license_info()
+    elif task == "thigh_shoulder_muscles_mr":
+        task_id = 857
+        resample = 1.5
+        trainer = "nnUNetTrainer_2000epochs_NoMirroring"
+        crop = None
+        model = "3d_fullres"
+        folds = [0]
+        if fast: raise ValueError("task thigh_shoulder_muscles_mr does not work with option --fast")
+        show_license_info()
+    elif task == "coronary_arteries":
+        task_id = 507
+        resample = [0.7, 0.7, 0.7]
+        trainer = "nnUNetTrainer_DASegOrd0_NoMirroring"
+        crop = ["heart"]
+        crop_addon = [20, 20, 20]
+        model = "3d_fullres_high"
+        folds = [0]
+        if fast: raise ValueError("task coronary_arteries does not work with option --fast")
+        show_license_info()
+
     elif task == "test":
         task_id = [517]
         resample = None
@@ -422,13 +531,13 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
         st = time.time()
         if not quiet: print("Generating rough segmentation for cropping...")
         if robust_rs:
-            crop_model_task = 732 if task == "total_mr" else 297
+            crop_model_task = 852 if task == "total_mr" else 297
             crop_spacing = 3.0
         else:
-            crop_model_task = 733 if task == "total_mr" else 298
+            crop_model_task = 853 if task == "total_mr" else 298
             crop_spacing = 6.0
         crop_task = "total_mr" if task == "total_mr" else "total"
-        crop_trainer = "nnUNetTrainer_DASegOrd0_NoMirroring" if task == "total_mr" else "nnUNetTrainer_4000epochs_NoMirroring"
+        crop_trainer = "nnUNetTrainer_2000epochs_NoMirroring" if task == "total_mr" else "nnUNetTrainer_4000epochs_NoMirroring"
         download_pretrained_weights(crop_model_task)
         
         organ_seg, _, _ = nnUNet_predict_image(input, None, crop_model_task, model="3d_fullres", folds=[0],
@@ -473,7 +582,7 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
                             quiet=quiet, verbose=verbose, test=test, skip_saving=skip_saving, device=device,
                             exclude_masks_at_border=statistics_exclude_masks_at_border,
                             no_derived_masks=no_derived_masks, v1_order=v1_order,
-                            stats_aggregation=stats_aggregation)
+                            stats_aggregation=stats_aggregation, remove_small_blobs=remove_small_blobs)
     seg = seg_img.get_fdata().astype(np.uint8)
 
     try:
@@ -517,6 +626,10 @@ def totalsegmentator(input: Union[str, Path, Nifti1Image], output: Union[str, Pa
                 input_path = input
             get_radiomics_features_for_entire_dir(input_path, output, stats_dir / "statistics_radiomics.json")
             if not quiet: print(f"  calculated in {time.time()-st:.2f}s")
+
+    # Restore initial torch settings
+    torch.backends.cudnn.benchmark = initial_cudnn_benchmark
+    torch.set_num_threads(initial_num_threads)
 
     if statistics or statistics_fast:
         return seg_img, stats

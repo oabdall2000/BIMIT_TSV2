@@ -54,13 +54,15 @@ def main():
 
     # cerebral_bleed: Intracerebral hemorrhage
     # liver_vessels: hepatic vessels
-    parser.add_argument("-ta", "--task", choices=["total", "body",
+    parser.add_argument("-ta", "--task", choices=["total", "body", "body_mr", "vertebrae_mr",
                         "lung_vessels", "cerebral_bleed", "hip_implant", "coronary_arteries",
                         "pleural_pericard_effusion", "test",
-                        "appendicular_bones", "tissue_types", "heartchambers_highres",
-                        "face", "vertebrae_body", "total_mr", "tissue_types_mr", "face_mr",
+                        "appendicular_bones", "appendicular_bones_mr", "tissue_types", "heartchambers_highres",
+                        "face", "vertebrae_body", "total_mr", "tissue_types_mr", "tissue_4_types", "face_mr",
                         "head_glands_cavities", "head_muscles", "headneck_bones_vessels", "headneck_muscles",
-                        "brain_structures", "liver_vessels"],
+                        "brain_structures", "liver_vessels", "oculomotor_muscles",
+                        "thigh_shoulder_muscles", "thigh_shoulder_muscles_mr", "lung_nodules", "kidney_cysts", 
+                        "breasts"],
                         help="Select which model to use. This determines what is predicted.",
                         default="total")
 
@@ -107,6 +109,9 @@ def main():
                         help="In multilabel file order classes as in v1. New v2 classes will be removed.",
                         default=False)
 
+    parser.add_argument("-rmb", "--remove_small_blobs", action="store_true", help="Remove small connected components (<0.2ml) from the final segmentations.",
+                        default=False)  # ~30s runtime because of the large number of classes
+        
     # "mps" is for apple silicon; the latest pytorch nightly version supports 3D Conv but not ConvTranspose3D which is
     # also needed by nnU-Net. So "mps" not working for now.
     # https://github.com/pytorch/pytorch/issues/77818
@@ -140,7 +145,8 @@ def main():
                      args.statistics, args.radiomics, args.crop_path, args.body_seg,
                      args.force_split, args.output_type, args.quiet, args.verbose, args.test, args.skip_saving,
                      args.device, args.license_number, not args.stats_include_incomplete,
-                     args.no_derived_masks, args.v1_order, args.fastest, args.roi_subset_robust)
+                     args.no_derived_masks, args.v1_order, args.fastest, args.roi_subset_robust,
+                     "mean", args.remove_small_blobs)
 
 
 if __name__ == "__main__":

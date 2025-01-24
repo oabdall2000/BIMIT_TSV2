@@ -6,6 +6,7 @@ import argparse
 import json
 import pickle
 from pprint import pprint
+import pkg_resources
 
 import nibabel as nib
 import numpy as np
@@ -24,8 +25,8 @@ def pi_time_to_phase(pi_time: float) -> str:
 
     native: 0-10
     arterial_early: 10-30
-    arterial_late:  30-50
-    portal_venous:  50-100
+    arterial_late:  30-60
+    portal_venous:  60-100
     delayed: 100+
 
     returns: phase, probability
@@ -41,7 +42,9 @@ def pi_time_to_phase(pi_time: float) -> str:
     elif pi_time < 50:
         return "arterial_late", 1.0
     elif pi_time < 60:
-        return "portal_venous", 0.7
+        return "arterial_late", 0.7  # in previous version: "portal_venous"
+    elif pi_time < 70:
+        return "portal_venous", 1.0
     elif pi_time < 90:
         return "portal_venous", 1.0
     elif pi_time < 100:
@@ -85,7 +88,8 @@ def get_ct_contrast_phase(ct_img: nib.Nifti1Image, model_file: Path = None):
         features.append(stats_hn[organ]["intensity"])
 
     if model_file is None:
-        classifier_path = Path(__file__).parents[2] / "resources" / "contrast_phase_classifiers_2024_07_19.pkl"
+        # classifier_path = Path(__file__).parents[2] / "resources" / "contrast_phase_classifiers_2024_07_19.pkl"
+        classifier_path = pkg_resources.resource_filename('totalsegmentator', 'resources/contrast_phase_classifiers_2024_07_19.pkl')
     else: 
         # manually set model file
         classifier_path = model_file

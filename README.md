@@ -1,8 +1,8 @@
 # TotalSegmentator
 
-Tool for segmentation of most major anatomical structures in any CT or MR image. It was trained on a wide range of different CT and MR images (different scanners, institutions, protocols,...) and therefore should work well on most images. A large part of the training dataset can be downloaded here: [CT dataset](https://doi.org/10.5281/zenodo.6802613) (1228 subjects) and [MR dataset](https://zenodo.org/doi/10.5281/zenodo.11367004) (298 subjects). You can also try the tool online at [totalsegmentator.com](https://totalsegmentator.com/).
+Tool for segmentation of most major anatomical structures in any CT or MR image. It was trained on a wide range of different CT and MR images (different scanners, institutions, protocols,...) and therefore should work well on most images. A large part of the training dataset can be downloaded here: [CT dataset](https://doi.org/10.5281/zenodo.6802613) (1228 subjects) and [MR dataset](https://zenodo.org/doi/10.5281/zenodo.11367004) (616 subjects). You can also try the tool online at [totalsegmentator.com](https://totalsegmentator.com/) or as [3D Slicer extension](https://github.com/lassoan/SlicerTotalSegmentator).
 
-**ANNOUNCEMENT: We recently added support for MR images. Try out by using the task `-ta total_mr` or see more details in our [paper](https://arxiv.org/abs/2405.19492).**
+**ANNOUNCEMENT: We created a platform where anyone can help annotate more data to further improve TotalSegmentator: [TotalSegmentator Annotation Platform](https://annotate.totalsegmentator.com).**
 
 Main classes for CT: 
 ![Alt text](resources/imgs/overview_classes_v2.png)
@@ -22,7 +22,7 @@ TotalSegmentator works on Ubuntu, Mac, and Windows and on CPU and GPU.
 
 Install dependencies:
 * Python >= 3.9
-* [Pytorch](http://pytorch.org/) >= 2.0.0
+* [Pytorch](http://pytorch.org/) >= 2.0.0 (and <2.4 for windows)
 
 Optionally:
 * if you use the option `--preview` you have to install xvfb (`apt-get install xvfb`) and fury (`pip install fury`)
@@ -61,26 +61,37 @@ Openly available for any usage:
 * **total_mr**: default task containing 56 main classes on MR images (see [here](https://github.com/wasserth/TotalSegmentator#class-details) for a list of classes)
 * **lung_vessels**: lung_vessels (cite [paper](https://www.sciencedirect.com/science/article/pii/S0720048X22001097)), lung_trachea_bronchia
 * **body**: body, body_trunc, body_extremities, skin
+* **body_mr**: body_trunc, body_extremities (for MR images)
+* **vertebrae_mr**: sacrum, vertebrae_L5, vertebrae_L4, vertebrae_L3, vertebrae_L2, vertebrae_L1, vertebrae_T12, vertebrae_T11, vertebrae_T10, vertebrae_T9, vertebrae_T8, vertebrae_T7, vertebrae_T6, vertebrae_T5, vertebrae_T4, vertebrae_T3, vertebrae_T2, vertebrae_T1, vertebrae_C7, vertebrae_C6, vertebrae_C5, vertebrae_C4, vertebrae_C3, vertebrae_C2, vertebrae_C1 (for CT this is part of the `total` task)
 * **cerebral_bleed**: intracerebral_hemorrhage (cite [paper](https://www.mdpi.com/2077-0383/12/7/2631))*
 * **hip_implant**: hip_implant*
-* **coronary_arteries**: coronary_arteries*
 * **pleural_pericard_effusion**: pleural_effusion (cite [paper](http://dx.doi.org/10.1097/RLI.0000000000000869)), pericardial_effusion (cite [paper](http://dx.doi.org/10.3390/diagnostics12051045))*
 * **head_glands_cavities**: eye_left, eye_right, eye_lens_left, eye_lens_right, optic_nerve_left, optic_nerve_right, parotid_gland_left, parotid_gland_right, submandibular_gland_right, submandibular_gland_left, nasopharynx, oropharynx, hypopharynx, nasal_cavity_right, nasal_cavity_left, auditory_canal_right, auditory_canal_left, soft_palate, hard_palate (cite [paper](https://www.mdpi.com/2072-6694/16/2/415))
 * **head_muscles**: masseter_right, masseter_left, temporalis_right, temporalis_left, lateral_pterygoid_right, lateral_pterygoid_left, medial_pterygoid_right, medial_pterygoid_left, tongue, digastric_right, digastric_left
 * **headneck_bones_vessels**: larynx_air, thyroid_cartilage, hyoid, cricoid_cartilage, zygomatic_arch_right, zygomatic_arch_left, styloid_process_right, styloid_process_left, internal_carotid_artery_right, internal_carotid_artery_left, internal_jugular_vein_right, internal_jugular_vein_left (cite [paper](https://www.mdpi.com/2072-6694/16/2/415))
 * **headneck_muscles**: sternocleidomastoid_right, sternocleidomastoid_left, superior_pharyngeal_constrictor, middle_pharyngeal_constrictor, inferior_pharyngeal_constrictor, trapezius_right, trapezius_left, platysma_right, platysma_left, levator_scapulae_right, levator_scapulae_left, anterior_scalene_right, anterior_scalene_left, middle_scalene_right, middle_scalene_left, posterior_scalene_right, posterior_scalene_left, sterno_thyroid_right, sterno_thyroid_left, thyrohyoid_right, thyrohyoid_left, prevertebral_right, prevertebral_left (cite [paper](https://www.mdpi.com/2072-6694/16/2/415))
-
+* **liver_vessels**: liver_vessels, liver_tumor (cite [paper](https://arxiv.org/abs/1902.09063))*
+* **oculomotor_muscles**: skull, eyeball_right, lateral_rectus_muscle_right, superior_oblique_muscle_right, levator_palpebrae_superioris_right, superior_rectus_muscle_right, medial_rectus_muscle_left, inferior_oblique_muscle_right, inferior_rectus_muscle_right, optic_nerve_left, eyeball_left, lateral_rectus_muscle_left, superior_oblique_muscle_left, levator_palpebrae_superioris_left, superior_rectus_muscle_left, medial_rectus_muscle_right, inferior_oblique_muscle_left, inferior_rectus_muscle_left, optic_nerve_right*
+* **lung_nodules**: lung, lung_nodules (provided by [BLUEMIND AI](https://bluemind.co/): Fitzjalen R., Aladin M., Nanyan G.) (trained on 1353 subjects, partly from LIDC-IDRI)
+* **kidney_cysts**: kidney_cyst_left, kidney_cyst_right (strongly improved accuracy compared to kidney_cysts inside of `total` task)
+* **breasts**: breast
 
 *: These models are not trained on the full totalsegmentator dataset but on some small other datasets. Therefore, expect them to work less robustly.
 
 Available with a license (free licenses available for non-commercial usage [here](https://backend.totalsegmentator.com/license-academic/). For a commercial license contact jakob.wasserthal@usb.ch):
 * **heartchambers_highres**: myocardium, atrium_left, ventricle_left, atrium_right, ventricle_right, aorta, pulmonary_artery (trained on sub-millimeter resolution)
 * **appendicular_bones**: patella, tibia, fibula, tarsal, metatarsal, phalanges_feet, ulna, radius, carpal, metacarpal, phalanges_hand
+* **appendicular_bones_mr**: patella, tibia, fibula, tarsal, metatarsal, phalanges_feet, ulna, radius (for MR images)
 * **tissue_types**: subcutaneous_fat, torso_fat, skeletal_muscle
 * **tissue_types_mr**: subcutaneous_fat, torso_fat, skeletal_muscle (for MR images)
-* **brain_structures**: brainstem, subarachnoid_space, venous_sinuses, septum_pellucidum, cerebellum, caudate_nucleus, lentiform_nucleus, insular_cortex, internal_capsule, ventricle, central_sulcus, frontal_lobe, parietal_lobe, occipital_lobe, temporal_lobe, thalamus
-* **vertebrae_body**: vertebral body of all vertebrae (without the vertebral arch)
+* **tissue_4_types**: subcutaneous_fat, torso_fat, skeletal_muscle, intermuscular_fat (in contrast to `tissue_types` skeletal_muscle is split into two classes: muscle and fat)
+* **brain_structures**: brainstem, subarachnoid_space, venous_sinuses, septum_pellucidum, cerebellum, caudate_nucleus, lentiform_nucleus, insular_cortex, internal_capsule, ventricle, central_sulcus, frontal_lobe, parietal_lobe, occipital_lobe, temporal_lobe, thalamus (NOTE: this is for CT) (cite [paper](https://doi.org/10.1148/ryai.2020190183) as our model is partly based on this)
+* **vertebrae_body**: vertebral body of all vertebrae (without the vertebral arch), intervertebral_discs (for MR this is part of the `total_mr` task)
 * **face**: face_region (for anonymization)
+* **face_mr**: face_region (for anonymization)
+* **thigh_shoulder_muscles**: quadriceps_femoris_left, quadriceps_femoris_right, thigh_medial_compartment_left, thigh_medial_compartment_right, thigh_posterior_compartment_left, thigh_posterior_compartment_right, sartorius_left, sartorius_right, deltoid, supraspinatus, infraspinatus, subscapularis, coracobrachial, trapezius, pectoralis_minor, serratus_anterior, teres_major, triceps_brachi"
+* **thigh_shoulder_muscles_mr**: quadriceps_femoris_left, quadriceps_femoris_right, thigh_medial_compartment_left, thigh_medial_compartment_right, thigh_posterior_compartment_left, thigh_posterior_compartment_right, sartorius_left, sartorius_right, deltoid, supraspinatus, infraspinatus, subscapularis, coracobrachial, trapezius, pectoralis_minor, serratus_anterior, teres_major, triceps_brachi" (for MR images)
+* **coronary_arteries**: coronary_arteries (also works on non-contrast images)
 
 Usage:
 ```
@@ -171,6 +182,11 @@ If you want to know which contrast phase a CT image is you can use the following
 totalseg_get_phase -i ct.nii.gz -o contrast_phase.json
 ```
 
+If you want to know which modality (CT or MR) a image is you can use the following command (requires `pip install xgboost`). 
+```
+totalseg_get_modality -i image.nii.gz -o modality.json
+```
+
 If you want to combine some subclasses (e.g. lung lobes) into one binary mask (e.g. entire lung) you can use the following command:
 ```
 totalseg_combine_masks -i totalsegmentator_output_dir -o combined_mask.nii.gz -m lungcomm 
@@ -180,12 +196,18 @@ Normally weights are automatically downloaded when running TotalSegmentator. If 
 ```
 totalseg_download_weights -t <task_name>
 ```
+This will download them to `~/.totalsegmentator/nnunet/results`. You can change this path by doing `export TOTALSEG_HOME_DIR=/new/path/.totalsegmentator`. If your machine has no internet, then download on another machine with internet and copy `~/.totalsegmentator` to the machine without internet.
 
 After acquiring a license number for the non-open tasks you can set it with the following command:
 ```
 totalseg_set_license -l aca_12345678910
 ```
 
+If you do not have internet access on the machine you want to run TotalSegmentator on:
+1. Install TotalSegmentator [and set up the license] on a machine with internet.
+2. Run TotalSegmentator for one subject on this machine. This will download the weights and save them to `~/.totalsegmentator`.
+3. Copy the folder `~/.totalsegmentator` from this machine to the machine without internet.
+4. TotalSegmentator should now work also on the machine without internet.
 
 ### Train/validation/test split
 The exact split of the dataset can be found in the file `meta.csv` inside of the [dataset](https://doi.org/10.5281/zenodo.6802613). This was used for the validation in our paper.
@@ -242,7 +264,7 @@ The following table shows a list of all classes for task `total`.
 TA2 is a standardized way to name anatomy. Mostly the TotalSegmentator names follow this standard.
 For some classes they differ which you can see in the table below.
 
-[Here](resources/totalsegmentator_snomed_mapping.csv) you can find a mapping of the TotalSegmentator classes to SNOMED-CT codes.
+[Here](totalsegmentator/resources/totalsegmentator_snomed_mapping.csv) you can find a mapping of the TotalSegmentator classes to SNOMED-CT codes.
 
 |Index|TotalSegmentator name|TA2 name|
 |:-----|:-----|:-----|
@@ -401,29 +423,24 @@ For some classes they differ which you can see in the table below.
 29 | iliac_vena_right | common iliac vein |
 30 | humerus_left ||
 31 | humerus_right ||
-32 | fibula ||
-33 | tibia ||
-34 | femur_left ||
-35 | femur_right ||
-36 | hip_left ||
-37 | hip_right ||
-38 | gluteus_maximus_left | gluteus maximus muscle |
-39 | gluteus_maximus_right | gluteus maximus muscle |
-40 | gluteus_medius_left | gluteus medius muscle |
-41 | gluteus_medius_right | gluteus medius muscle |
-42 | gluteus_minimus_left | gluteus minimus muscle |
-43 | gluteus_minimus_right | gluteus minimus muscle |
-44 | autochthon_left ||
-45 | autochthon_right ||
-46 | iliopsoas_left | iliopsoas muscle |
-47 | iliopsoas_right | iliopsoas muscle |
-48 | quadriceps_femoris_left ||
-49 | quadriceps_femoris_right ||
-50 | thigh_medial_compartment_left ||
-51 | thigh_medial_compartment_right ||
-52 | thigh_posterior_compartment_left ||
-53 | thigh_posterior_compartment_right ||
-54 | sartorius_left ||
-55 | sartorius_right ||
-56 | brain ||
+32 | scapula_left ||
+33 | scapula_right ||
+34 | clavicula_left ||
+35 | clavicula_right ||
+36 | femur_left ||
+37 | femur_right ||
+38 | hip_left ||
+39 | hip_right ||
+40 | gluteus_maximus_left | gluteus maximus muscle |
+41 | gluteus_maximus_right | gluteus maximus muscle |
+42 | gluteus_medius_left | gluteus medius muscle |
+43 | gluteus_medius_right | gluteus medius muscle |
+44 | gluteus_minimus_left | gluteus minimus muscle |
+45 | gluteus_minimus_right | gluteus minimus muscle |
+46 | autochthon_left ||
+47 | autochthon_right ||
+48 | iliopsoas_left | iliopsoas muscle |
+49 | iliopsoas_right | iliopsoas muscle |
+50 | brain ||
+
 

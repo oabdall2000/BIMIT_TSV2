@@ -14,14 +14,28 @@ from multiprocessing import Pool
 import tempfile
 import inspect
 import warnings
+import atexit
 
 import numpy as np
 import nibabel as nib
 from nibabel.nifti1 import Nifti1Image
-from p_tqdm import p_map
+# from p_tqdm import p_map
 import torch
 
 from totalsegmentator.libs import nostdout
+
+# --- monkey-patch snippet (custom trainers) --- #
+from nnunetv2.utilities.find_class_by_name import recursive_find_python_class
+from totalsegmentator.custom_trainers import nnUNetTrainer_MOSAIC_1k_QuarterLR_NoMirroring
+def recursive_find_python_class_custom(folder: str, class_name: str, current_module: str):
+    if class_name == "nnUNetTrainer_MOSAIC_1k_QuarterLR_NoMirroring":
+        return nnUNetTrainer_MOSAIC_1k_QuarterLR_NoMirroring
+    
+    return recursive_find_python_class(folder, class_name, current_module)
+# monkey-patch
+import nnunetv2
+nnunetv2.inference.predict_from_raw_data.recursive_find_python_class = recursive_find_python_class_custom
+# --- now we have included custom trainers into the nnUNetv2 basic package --- #
 
 # nnUNet 2.1
 # with nostdout():
@@ -47,9 +61,10 @@ from totalsegmentator.statistics import get_basic_statistics
 
 # Hide nnunetv2 warning: Detected old nnU-Net plans format. Attempting to reconstruct network architecture...
 warnings.filterwarnings("ignore", category=UserWarning, module="nnunetv2")
+warnings.filterwarnings("ignore", category=FutureWarning, module="nnunetv2")  # ignore torch.load warning
 
 
-def _get_full_task_name(task_id: int, src: str="raw"):
+def get_full_task_name(task_id: int, src: str="raw"):
     if src == "raw":
         base = Path(os.environ['nnUNet_raw_data_base']) / "nnUNet_raw_data"
     elif src == "preprocessed":
@@ -78,6 +93,20 @@ def _get_full_task_name(task_id: int, src: str="raw"):
                 return dir
 
     raise ValueError(f"task_id {task_id} not found")
+
+
+def get_full_task_name_v2(task_id: int, src: str="raw"):
+    if src == "raw":
+        base = Path(os.environ['nnUNet_raw'])
+    elif src == "preprocessed":
+        base = Path(os.environ['nnUNet_preprocessed'])
+    elif src == "results":
+        base = Path(os.environ['nnUNet_results'])
+    dirs = [str(dir).split("/")[-1] for dir in base.glob("*")]
+    for dir in dirs:
+        if f"Dataset{task_id:03d}" in dir:
+            return dir
+    raise ValueError(f"dataset_id {task_id} not found")
 
 
 def contains_empty_img(imgs):
@@ -137,7 +166,7 @@ def nnUNet_predict(dir_in, dir_out, task_id, model="3d_fullres", folds=None,
     disable_mixed_precision = False
 
     task_id = int(task_id)
-    task_name = _get_full_task_name(task_id, src="results")
+    task_name = get_full_task_name(task_id, src="results")
 
     # trainer_class_name = default_trainer
     # trainer = trainer_class_name
@@ -159,11 +188,6 @@ def nnUNetv2_predict(dir_in, dir_out, task_id, model="3d_fullres", folds=None,
                      plans="nnUNetPlans", device="cuda", quiet=False, step_size=0.5):
     """
     Identical to bash function nnUNetv2_predict
-
-    folds:  folds to use for prediction. Default is None which means that folds will be detected
-            automatically in the model output folder.
-            for all folds: None
-            for only fold 0: [0]
     """
     dir_in = str(dir_in)
     dir_out = str(dir_out)
@@ -248,6 +272,7 @@ def nnUNetv2_predict(dir_in, dir_out, task_id, model="3d_fullres", folds=None,
         use_folds=folds,
         checkpoint_name=chk,
     )
+    # new nnunetv2 feature: keep dir_out empty to return predictions as return value
     predictor.predict_from_files(dir_in, dir_out,
                                  save_probabilities=save_probabilities, overwrite=not continue_prediction,
                                  num_processes_preprocessing=npp, num_processes_segmentation_export=nps,
@@ -292,7 +317,7 @@ def nnUNet_predict_image(file_in: Union[str, Path, Nifti1Image], file_out, task_
                          crop_addon=[3,3,3], roi_subset=None, output_type="nifti",
                          statistics=False, quiet=False, verbose=False, test=0, skip_saving=False,
                          device="cuda", exclude_masks_at_border=True, no_derived_masks=False,
-                         v1_order=False, stats_aggregation="mean"):
+                         v1_order=False, stats_aggregation="mean", remove_small_blobs=False):
     """
     crop: string or a nibabel image
     resample: None or float (target spacing for all dimensions) or list of floats
@@ -327,6 +352,15 @@ def nnUNet_predict_image(file_in: Union[str, Path, Nifti1Image], file_out, task_
     if type(resample) is float:
         resample = [resample, resample, resample]
     
+    if v1_order and task_name == "total":
+        label_map = class_map["total_v1"]
+    else:
+        label_map = class_map[task_name]
+    
+    # Keep only voxel values corresponding to the roi_subset
+    if roi_subset is not None:
+        label_map = {k: v for k, v in label_map.items() if v in roi_subset}
+            
     # for debugging
     # tmp_dir = file_in.parent / ("nnunet_tmp_" + ''.join(random.Random().choices(string.ascii_uppercase + string.digits, k=8)))
     # (tmp_dir).mkdir(exist_ok=True)
@@ -363,6 +397,10 @@ def nnUNet_predict_image(file_in: Union[str, Path, Nifti1Image], file_out, task_
         if len(img_in_orig.shape) > 3:
             print(f"WARNING: Input image has {len(img_in_orig.shape)} dimensions. Only using first three dimensions.")
             img_in_orig = nib.Nifti1Image(img_in_orig.get_fdata()[:,:,:,0], img_in_orig.affine)
+            
+        img_dtype = img_in_orig.get_data_dtype()
+        if img_dtype.fields is not None:
+            raise TypeError(f"Invalid dtype {img_dtype}. Expected a simple dtype, not a structured one.")
 
         # takes ~0.9s for medium image
         img_in = nib.Nifti1Image(img_in_orig.get_fdata(), img_in_orig.affine)  # copy img_in_orig
@@ -375,6 +413,18 @@ def nnUNet_predict_image(file_in: Union[str, Path, Nifti1Image], file_out, task_
                     crop_mask_img = nib.load(crop_path / f"{crop}.nii.gz")
             else:
                 crop_mask_img = crop
+                
+            if crop_mask_img.get_fdata().sum() == 0:
+                if not quiet: 
+                    print("INFO: Crop is empty. Returning empty segmentation.")
+                img_out = nib.Nifti1Image(np.zeros(img_in.shape, dtype=np.uint8), img_in.affine)
+                img_out = add_label_map_to_nifti(img_out, label_map)
+                if file_out is not None:
+                    nib.save(img_out, file_out)
+                    if nora_tag != "None":
+                        subprocess.call(f"/opt/nora/src/node/nora -p {nora_tag} --add {file_out} --addtag atlas", shell=True)
+                return img_out, img_in_orig, None
+                
             img_in, bbox = crop_to_mask(img_in, crop_mask_img, addon=crop_addon, dtype=np.int32,
                                       verbose=verbose)
             if not quiet:
@@ -513,22 +563,37 @@ def nnUNet_predict_image(file_in: Union[str, Path, Nifti1Image], file_out, task_
 
         if task_name == "body":
             vox_vol = np.prod(img_pred.header.get_zooms())
-            size_thr_mm3 = 50000 / vox_vol
+            size_thr_mm3 = 50000
             img_pred_pp = remove_small_blobs_multilabel(img_pred.get_fdata().astype(np.uint8),
                                                         class_map[task_name], ["body_extremities"],
-                                                        interval=[size_thr_mm3, 1e10], debug=False, quiet=quiet)
+                                                        interval=[size_thr_mm3/vox_vol, 1e10], debug=False, quiet=quiet)
             img_pred = nib.Nifti1Image(img_pred_pp, img_pred.affine)
+        
+        # General postprocessing    
+        if remove_small_blobs:
+            if not quiet: print("Removing small blobs...")
+            st = time.time()
+            vox_vol = np.prod(img_pred.header.get_zooms())
+            size_thr_mm3 = 200
+            img_pred_pp = remove_small_blobs_multilabel(img_pred.get_fdata().astype(np.uint8),
+                                                        class_map[task_name], list(class_map[task_name].values()),
+                                                        interval=[size_thr_mm3/vox_vol, 1e10], debug=False, quiet=quiet)  # ~24s
+            img_pred = nib.Nifti1Image(img_pred_pp, img_pred.affine)
+            if not quiet: print(f"  Removed in {time.time() - st:.2f}s")
 
         if preview:
             from totalsegmentator.preview import generate_preview
             # Generate preview before upsampling so it is faster and still in canonical space
             # for better orientation.
             if not quiet: print("Generating preview...")
-            st = time.time()
-            smoothing = 20
-            preview_dir = file_out.parent if multilabel_image else file_out
-            generate_preview(img_in_rsp, preview_dir / f"preview_{task_name}.png", img_pred.get_fdata(), smoothing, task_name)
-            if not quiet: print(f"  Generated in {time.time() - st:.2f}s")
+            if file_out is None:
+                print("WARNING: No output directory specified. Skipping preview generation.")
+            else:
+                st = time.time()
+                smoothing = 20
+                preview_dir = file_out.parent if multilabel_image else file_out
+                generate_preview(img_in_rsp, preview_dir / f"preview_{task_name}.png", img_pred.get_fdata(), smoothing, task_name)
+                if not quiet: print(f"  Generated in {time.time() - st:.2f}s")
 
         # Statistics calculated on the 3mm downsampled image are very similar to statistics
         # calculated on the original image. Volume often completely identical. For intensity
@@ -577,13 +642,9 @@ def nnUNet_predict_image(file_in: Union[str, Path, Nifti1Image], file_out, task_
         # Reorder labels if needed
         if v1_order and task_name == "total":
             img_data = reorder_multilabel_like_v1(img_data, class_map["total"], class_map["total_v1"])
-            label_map = class_map["total_v1"]
-        else:
-            label_map = class_map[task_name]
 
         # Keep only voxel values corresponding to the roi_subset
         if roi_subset is not None:
-            label_map = {k: v for k, v in label_map.items() if v in roi_subset}
             img_data *= np.isin(img_data, list(label_map.keys()))
 
         # Prepare output nifti
@@ -632,21 +693,22 @@ def nnUNet_predict_image(file_in: Union[str, Path, Nifti1Image], file_out, task_
                             if nora_tag != "None":
                                 subprocess.call(f"/opt/nora/src/node/nora -p {nora_tag} --add {output_path} --addtag mask", shell=True)
                     else:
+                        nib.save(img_pred, tmp_dir / "s01.nii.gz")  # needed inside of threads
+
                         # Code for multithreaded execution
                         #   Speed with different number of threads:
                         #   1: 46s, 2: 24s, 6: 11s, 10: 8s, 14: 8s
-                        nib.save(img_pred, tmp_dir / "s01.nii.gz")
-                        _ = p_map(partial(save_segmentation_nifti, tmp_dir=tmp_dir, file_out=file_out, nora_tag=nora_tag, header=new_header, task_name=task_name, quiet=quiet),
-                                selected_classes.items(), num_cpus=nr_threads_saving, disable=quiet)
+                        # _ = p_map(partial(save_segmentation_nifti, tmp_dir=tmp_dir, file_out=file_out, nora_tag=nora_tag, header=new_header, task_name=task_name, quiet=quiet),
+                        #         selected_classes.items(), num_cpus=nr_threads_saving, disable=quiet)
 
                         # Multihreaded saving with same functions as in nnUNet -> same speed as p_map
-                        # pool = Pool(nr_threads_saving)
-                        # results = []
-                        # for k, v in selected_classes.items():
-                        #     results.append(pool.starmap_async(save_segmentation_nifti, ((k, v, tmp_dir, file_out, nora_tag),) ))
-                        # _ = [i.get() for i in results]  # this actually starts the execution of the async functions
-                        # pool.close()
-                        # pool.join()
+                        pool = Pool(nr_threads_saving)
+                        results = []
+                        for k, v in selected_classes.items():
+                            results.append(pool.starmap_async(save_segmentation_nifti, [((k, v), tmp_dir, file_out, nora_tag, new_header, task_name, quiet)]))
+                        _ = [i.get() for i in results]  # this actually starts the execution of the async functions
+                        pool.close()
+                        pool.join()
             if not quiet: print(f"  Saved in {time.time() - st:.2f}s")
 
             # Postprocessing single files

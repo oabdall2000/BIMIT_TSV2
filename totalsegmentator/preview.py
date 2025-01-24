@@ -62,14 +62,10 @@ roi_groups = {
         ["humerus_left", "humerus_right", "femur_left", "femur_right", 
         "hip_left", "hip_right", "sacrum",
         "vertebrae", "intervertebral_discs",
-        "fibula", "tibia",
         "autochthon_left", "autochthon_right", "iliopsoas_left", "iliopsoas_right",
         "gluteus_medius_left", "gluteus_medius_right", "gluteus_minimus_left", "gluteus_minimus_right",
-        "gluteus_maximus_left", "gluteus_maximus_right",
-        "quadriceps_femoris_left", "quadriceps_femoris_right", 
-        "thigh_medial_compartment_left", "thigh_medial_compartment_right", 
-        "thigh_posterior_compartment_left", "thigh_posterior_compartment_right", 
-        "sartorius_left", "sartorius_right"],
+        "gluteus_maximus_left", "gluteus_maximus_right", 
+        "scapula_left", "scapula_right", "clavicula_left", "clavicula_right"],
         ["iliac_artery_left", "iliac_artery_right", "iliac_vena_left", "iliac_vena_right",
         "aorta", "inferior_vena_cava", "portal_vein_and_splenic_vein",
         "heart", "esophagus", "stomach", "duodenum", "colon", "small_bowel", "urinary_bladder"],
@@ -98,6 +94,14 @@ roi_groups = {
     "body": [
         ["body_trunc", "body_extremities"]
     ],
+    "body_mr": [
+        ["body_trunc", "body_extremities"]
+    ],
+    "vertebrae_mr": [
+        ["sacrum", "vertebrae_L5", "vertebrae_L4", "vertebrae_L3", "vertebrae_L2", "vertebrae_L1", "vertebrae_T12", "vertebrae_T11", "vertebrae_T10", 
+         "vertebrae_T9", "vertebrae_T8", "vertebrae_T7", "vertebrae_T6", "vertebrae_T5", "vertebrae_T4", "vertebrae_T3", "vertebrae_T2", "vertebrae_T1", 
+         "vertebrae_C7", "vertebrae_C6", "vertebrae_C5", "vertebrae_C4", "vertebrae_C3", "vertebrae_C2", "vertebrae_C1"]
+    ],
     "pleural_pericard_effusion": [
         ["pleural_effusion", "pericardial_effusion"]
     ],
@@ -105,7 +109,7 @@ roi_groups = {
         ["liver_vessels", "liver_tumor"]
     ],
     "vertebrae_body": [
-        ["vertebrae_body"]
+        ["vertebrae_body", "intervertebral_discs"]
     ],
     "heartchambers_highres": [
         ["heart_myocardium"],
@@ -117,6 +121,10 @@ roi_groups = {
         ["patella", "tibia", "fibula", "tarsal", "metatarsal", "phalanges_feet",
          "ulna", "radius", "carpal", "metacarpal", "phalanges_hand"]
     ],
+    "appendicular_bones_mr": [
+        ["patella", "tibia", "fibula", "tarsal", "metatarsal", "phalanges_feet",
+         "ulna", "radius"]
+    ],
     "tissue_types": [
         ["subcutaneous_fat"],
         ["torso_fat"],
@@ -126,6 +134,12 @@ roi_groups = {
         ["subcutaneous_fat"],
         ["torso_fat"],
         ["skeletal_muscle"]
+    ],
+    "tissue_4_types": [
+        ["subcutaneous_fat"],
+        ["torso_fat"],
+        ["skeletal_muscle"],
+        ["intermuscular_fat"]
     ],
     "face": [
         ["face"]
@@ -168,6 +182,43 @@ roi_groups = {
         "sterno_thyroid_right", "sterno_thyroid_left", "thyrohyoid_right", "thyrohyoid_left",
         "prevertebral_right", "prevertebral_left"]
     ],
+    "oculomotor_muscles": [
+        ["skull"], 
+        ["eyeball_right", "eyeball_left", 
+        "levator_palpebrae_superioris_right", "levator_palpebrae_superioris_left", 
+        "superior_rectus_muscle_right", "superior_rectus_muscle_left",
+        "inferior_oblique_muscle_right", "inferior_oblique_muscle_left"],
+        ["lateral_rectus_muscle_right", "lateral_rectus_muscle_left", 
+        "superior_oblique_muscle_right", "superior_oblique_muscle_left",
+        "medial_rectus_muscle_right", "medial_rectus_muscle_left",
+        "inferior_rectus_muscle_right", "inferior_rectus_muscle_left", 
+        "optic_nerve_right", "optic_nerve_left"]
+    ],
+    "thigh_shoulder_muscles": [
+        ["quadriceps_femoris_left", "quadriceps_femoris_right", 
+        "thigh_medial_compartment_left", "thigh_medial_compartment_right",
+        "deltoid", "supraspinatus", "infraspinatus", "subscapularis", "coracobrachial", "trapezius"], 
+        ["thigh_posterior_compartment_left", "thigh_posterior_compartment_right", 
+        "sartorius_left", "sartorius_right",
+        "pectoralis_minor", "serratus_anterior", "teres_major", "triceps_brachii"]
+    ],
+    "thigh_shoulder_muscles_mr": [
+        ["quadriceps_femoris_left", "quadriceps_femoris_right", 
+        "thigh_medial_compartment_left", "thigh_medial_compartment_right",
+        "deltoid", "supraspinatus", "infraspinatus", "subscapularis", "coracobrachial", "trapezius"], 
+        ["thigh_posterior_compartment_left", "thigh_posterior_compartment_right", 
+        "sartorius_left", "sartorius_right",
+        "pectoralis_minor", "serratus_anterior", "teres_major", "triceps_brachii"]
+    ],
+    "lung_nodules": [
+        ["lung_nodules"]
+    ],
+    "kidney_cysts": [
+        ["kidney_cyst_left", "kidney_cyst_right"]
+    ],
+    "breasts": [
+        ["breast"]
+    ],
     "test": [
         ["ulna"]
     ]
@@ -197,7 +248,7 @@ def plot_subject(ct_img, output_path, df=None, roi_data=None, smoothing=20,
     # window_size = (1800, 1200)  # if we need higher res image of single class
 
     scene = window.Scene()
-    showm = window.ShowManager(scene, size=window_size, reset_camera=False)
+    showm = window.ShowManager(scene=scene, size=window_size, reset_camera=False)
     showm.initialize()
 
     # ct_img = nib.load(subject_path)
@@ -205,7 +256,7 @@ def plot_subject(ct_img, output_path, df=None, roi_data=None, smoothing=20,
     data = data.transpose(1, 2, 0)  # Show sagittal view
     data = data[::-1, :, :]
     value_range = (-115, 225)  # soft tissue window
-    slice_actor = actor.slicer(data, ct_img.affine, value_range)
+    slice_actor = actor.slicer(data=data, affine=ct_img.affine, value_range=value_range)
     slice_actor.SetPosition(0, 0, 0)
     scene.add(slice_actor)
 
@@ -231,7 +282,7 @@ def plot_subject(ct_img, output_path, df=None, roi_data=None, smoothing=20,
     scene.reset_camera_tight(margin_factor=1.02)  # need to do reset_camera=False in record for this to work in
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    window.record(scene, size=window_size,
+    window.record(scene=scene, size=window_size,
                   out_path=output_path, reset_camera=False)  # , reset_camera=False
     scene.clear()
 
